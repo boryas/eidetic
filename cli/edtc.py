@@ -64,6 +64,3 @@ def recall(type, name):
 
     for line in lines:
         click.echo(line)
-
-if __name__ == '__main__':
-    cli()
