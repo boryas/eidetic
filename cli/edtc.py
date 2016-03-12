@@ -16,7 +16,12 @@ def cli():
 @click.option('-n', '--name', prompt=True, help='name to recall it by later')
 def remember(type, description, name):
     '''
-    Ask Eidetic to remember something
+    Ask Eidetic to remember something.
+
+    Eidetic will prompt for a tag type, detailed description, and a name
+    for recall. After that, freeform tags maybe input. If a freeform tag
+    already has some values, Eidetic will hint them to you. Type 'done'
+    to stop entering tags.
     '''
     conn = r.connect(host="localhost", port=28015, db=DB)
     tags = {'type': type, type: name, 'description': description}
@@ -43,6 +48,8 @@ def _recall_entry(type, name, conn):
     by_type = defaultdict(list)
     for e in c:
         by_type[e['type']].append(e)
+    if not by_type:
+        return
     lines = []
     o = by_type[type]
     assert len(o) == 1
@@ -85,7 +92,15 @@ def _recall_types(conn):
 @click.argument('tags', nargs=-1)
 def recall(ctx, tags):
     '''
-    Display information Eidetic has remembered
+    Display information Eidetic has remembered.
+
+    If no tags are given, list available tag types.
+
+    If one tag is given, it is interpreted as a type and Eidetic will
+    show all the available tags of that type. (e.g. list all projects)
+
+    If two tags are present, then Eidetic shows detailed information
+    about what it has remembered for the specific second tag.
     '''
     conn = r.connect(host="localhost", port=28015, db=DB)
     if len(tags) == 0:
