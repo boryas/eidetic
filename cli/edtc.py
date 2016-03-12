@@ -15,6 +15,9 @@ def cli():
 @click.option('-d', '--description', prompt=True, help='more details about the stuff')
 @click.option('-n', '--name', prompt=True, help='name to recall it by later')
 def remember(type, description, name):
+    '''
+    Ask Eidetic to remember something
+    '''
     conn = r.connect(host="localhost", port=28015, db=DB)
     tags = {'type': type, type: name, 'description': description}
     while True:
@@ -68,24 +71,28 @@ def _recall_type(type, conn):
     c = r.db(DB).table(TABLE).filter(r.row['type'] == type).run(conn)
     for e in c:
         names.append(e[type])
-    click.echo(" ".join(names))
+    if names:
+        click.echo(" ".join(names))
 
 def _recall_types(conn):
     c = r.db(DB).table(TABLE).run(conn)
     types = set([e['type'] for e in c])
-    click.echo(" ".join(types))
+    if types:
+        click.echo(" ".join(types))
 
 @cli.command()
 @click.pass_context
-@click.option('-t', '--type', help='the type of stuff to recall')
-@click.option('-n', '--name', help='which stuff')
-def recall(ctx, type, name):
+@click.argument('tags', nargs=-1)
+def recall(ctx, tags):
+    '''
+    Display information Eidetic has remembered
+    '''
     conn = r.connect(host="localhost", port=28015, db=DB)
-    if not type and not name:
+    if len(tags) == 0:
         _recall_types(conn)
-    elif type and not name:
-        _recall_type(type, conn)
-    elif type and name:
-        _recall_entry(type, name, conn)
+    elif len(tags) == 1:
+        _recall_type(tags[0], conn)
+    elif len(tags) == 2:
+        _recall_entry(tags[0], tags[1], conn)
     else:
         click.echo(ctx.get_help())
