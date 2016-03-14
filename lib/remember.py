@@ -1,5 +1,7 @@
 import os
 import rethinkdb as r
+import subprocess
+import tempfile
 
 import db
 
@@ -30,12 +32,9 @@ def _depluralize(s):
     if s.endswith('s'):
         return s[:-1]
 
-def parse_markdown_project(project_file):
-    category, project = _get_tags_from_filename(project_file.name)
-    lines = project_file.readlines()
-    tag = None
-    project = {'name': project, 'tags': [category]}
-    for line in lines:
+def _parse_markdown_project(project_lines, name, category):
+    project = {'name': name, 'tags': [category]}
+    for line in project_lines:
         line = line.strip()
         if not line:
             continue
@@ -54,6 +53,30 @@ def parse_markdown_project(project_file):
             else:
                 project[h2] = line
     return project
+
+def _get_project_from_editor():
+    initial_message = """# <DESCRIPTION>
+## Purpose
+## Outcomes
+## Waiting on
+## Actions
+## Next Action"""
+    EDITOR = os.environ.get('EDITOR', 'vim')
+    with tempfile.NamedTemporaryFile(suffix=".md") as f:
+        f.write(initial_message)
+        f.flush()
+        subprocess.call([EDITOR, f.name])
+        f.seek(0)
+        return f.readlines()
+
+def parse_markdown_project_from_editor(name, category):
+    lines = _get_project_from_editor()
+    return _parse_markdown_project(lines, name, category)
+
+def parse_markdown_project_from_file(project_file):
+    category, name = _get_tags_from_filename(project_file.name)
+    lines = project_file.readlines()
+    return _parse_markdown_project(lines, name, category)
 
 def store_project(project):
     conn = db.get_conn()
