@@ -6,11 +6,11 @@ import lib.remember
 @click.argument('project-file', required=False, type=click.File('rb'))
 def remember(project_file):
     '''
-    Ask Eidetic to remember some information for you.
+    Ask Eidetic to remember some information.
     '''
     if not project_file:
         name = click.prompt('Project name')
-        category = click.prompt('Project category')
+        category = click.prompt('Project category (e.g. business, pleasure)')
         project = lib.remember.parse_markdown_project_from_editor(name, category)
     else:
         project = lib.remember.parse_markdown_project_from_file(project_file)
