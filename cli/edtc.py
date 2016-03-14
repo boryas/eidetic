@@ -2,112 +2,127 @@ from collections import defaultdict
 import readline
 import rethinkdb as r
 import click
+import os
 
 DB = 'eidetic'
-TABLE = 'stuff'
+TABLE = 'projects'
 
 @click.group()
 def cli():
     pass
 
-@cli.command()
-@click.option('-t', '--type', prompt=True, help='the type of stuff to remember')
-@click.option('-d', '--description', prompt=True, help='more details about the stuff')
-@click.option('-n', '--name', prompt=True, help='name to recall it by later')
-def remember(type, description, name):
-    '''
-    Ask Eidetic to remember something.
-
-    Eidetic will prompt for a tag type, detailed description, and a name
-    for recall. After that, freeform tags maybe input. If a freeform tag
-    already has some values, Eidetic will hint them to you. Type 'done'
-    to stop entering tags.
-    '''
-    conn = r.connect(host="localhost", port=28015, db=DB)
-    tags = {'type': type, type: name, 'description': description}
-    while True:
-        tag = click.prompt('tag', type=str) 
-        # bail out on some key words
-        if tag in ['q', 'quit', 'done', 'stop']:
-            break
-        # make sure we got a tag before getting a value
-        elif not tag:
-            continue
-        _recall_type(tag, conn)
-        value = click.prompt('tag value', type=str)
-        # support bools
-        if value in ['y', 't', 'True', 'true']:
-            value = True
-        if value in ['n', 'f', 'False', 'false']:
-            value = False
-        tags[tag] = value
-    r.db(DB).table(TABLE).insert([tags]).run(conn)
-
-def _recall_entry(type, name, conn):
-    c = r.db(DB).table(TABLE).filter(r.row[type] == name).run(conn)
-    by_type = defaultdict(list)
-    for e in c:
-        by_type[e['type']].append(e)
-    if not by_type:
-        return
+def _format_project_markdown(project):
     lines = []
-    o = by_type[type]
-    assert len(o) == 1
-    o = o[0]
-    assert o['type'] == type
-    lines.append('# {}'.format(o['description']))
-    lines.append('## {}'.format(type))
-    lines.append(o[type])
-    skip = ['description', 'id', 'type', type]
-    for k, v in o.items():
-        if k in skip:
-            continue
-        lines.append('## {}'.format(k))
-        lines.append(v)
-    for t, es in by_type.items():
-        if t == type:
-            continue
-        lines.append('## {}'.format(t))
-        for e in es:
-            lines.append('* {}'.format(e['description']))
-    for line in lines:
-        click.echo(line)
+    lines.append('# {}'.format(project['description']))
+    lines.append('')
+    lines.append('## Purpose')
+    lines.append(project['purpose'])
+    if 'outcomes' in project:
+        lines.append('')
+        lines.append('## Desired Outcomes')
+        for outcome in project['outcomes']:
+            lines.append("* {}".format(outcome['description']))
+    if 'waitings' in project:
+        lines.append('')
+        lines.append('## Waiting')
+        for waiting in project['waitings']:
+            lines.append("* {}".format(waiting['description']))
+    if 'actions' in project:
+        lines.append('')
+        lines.append('## Actions')
+        for action in project['actions']:
+            lines.append("* {}".format(action['description']))
+    return "\n".join(lines)
 
-def _recall_type(type, conn):
-    names = []
-    c = r.db(DB).table(TABLE).filter(r.row['type'] == type).run(conn)
-    for e in c:
-        names.append(e[type])
+def _recall_project(name, conn):
+    c = r.db(DB).table(TABLE).filter(r.row['name'] == name).run(conn)
+    for p in c:
+        project_md = _format_project_markdown(p)
+        click.echo(project_md)
+
+def _recall_names(conn):
+    c = r.db(DB).table(TABLE).pluck('name').distinct().run(conn)
+    names = " ".join([n['name'] for n in c])
     if names:
-        click.echo(" ".join(names))
-
-def _recall_types(conn):
-    c = r.db(DB).table(TABLE).run(conn)
-    types = set([e['type'] for e in c])
-    if types:
-        click.echo(" ".join(types))
+        click.echo(names)
 
 @cli.command()
 @click.pass_context
-@click.argument('tags', nargs=-1)
-def recall(ctx, tags):
+@click.argument('names', nargs=-1)
+def recall(ctx, names):
     '''
     Display information Eidetic has remembered.
 
-    If no tags are given, list available tag types.
+    If no name is given, Eidetic will list available project names
 
-    If one tag is given, it is interpreted as a type and Eidetic will
-    show all the available tags of that type. (e.g. list all projects)
-
-    If two tags are present, then Eidetic shows detailed information
-    about what it has remembered for the specific second tag.
+    If a name is given, Eidetic will show detailed information about that project
     '''
     conn = r.connect(host="localhost", port=28015, db=DB)
-    if len(tags) == 0:
-        _recall_types(conn)
-    elif len(tags) == 1:
-        _recall_type(tags[0], conn)
-    elif len(tags) == 2:
-        _recall_entry(tags[0], tags[1], conn)
+    if not names:
+        _recall_names(conn)
     else:
-        click.echo(ctx.get_help())
+        for name in names:
+            _recall_project(name, conn)
+
+def _get_tags_from_filename(fname):
+    dir, file = os.path.split(fname)
+    _, dir = os.path.split(dir)
+    file, _ = os.path.splitext(file)
+    return dir, file
+
+def _parse_h2(h2):
+    h2 = h2.lower()
+    if 'action' in h2:
+        if 'next' in h2:
+            return 'action', True
+        return 'action', False
+    if 'outcome' in h2:
+        return 'outcome', False
+    if 'waiting' in h2:
+        if 'blocked' in h2:
+            return 'waiting', True
+        return 'waiting', False
+    return h2, False
+
+def _pluralize(s):
+    return s+'s'
+
+def _depluralize(s):
+    if s.endswith('s'):
+        return s[:-1]
+
+def _parse_markdown_project(project_file):
+    category, project = _get_tags_from_filename(project_file.name)
+    lines = project_file.readlines()
+    tag = None
+    parsed_project = {'name': project, 'tags': [category]}
+    for line in lines:
+        line = line.strip()
+        if not line:
+            continue
+        if line.startswith('# '):
+            parsed_project['description'] = line.rpartition('# ')[2]
+        elif line.startswith('## '):
+            h2, next = _parse_h2(line.rpartition('## ')[2])
+        else:
+            if line.startswith('* '):
+                if _pluralize(h2) not in parsed_project:
+                    parsed_project[_pluralize(h2)] = []
+                item = line.rpartition('* ')[2]
+                parsed_project[_pluralize(h2)].append(
+                        {'description': item,
+                         'next': next})
+            else:
+                parsed_project[h2] = line
+    return parsed_project
+
+
+@cli.command()
+@click.argument('project-file', type=click.File('rb'))
+def remember(project_file):
+    '''
+    Ask Eidetic to remember some information for you.
+    '''
+    parsed_project = _parse_markdown_project(project_file)
+    conn = r.connect(host="localhost", port=28015, db=DB)
+    r.db(DB).table(TABLE).insert(parsed_project).run(conn)
