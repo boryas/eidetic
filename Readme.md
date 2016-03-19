@@ -13,9 +13,13 @@ and forget a project you aren't working on anymore.
 > Usage: edtc [OPTIONS] COMMAND [ARGS]...
 > 
 > Options:
+>
 >   --help  Show this message and exit.
 > 
 > Commands:
+>
 >   forget    Forget information Eidetic has remembered.
+>
 >   recall    Display information Eidetic has remembered.
+>
 >   remember  Ask Eidetic to remember some information.
