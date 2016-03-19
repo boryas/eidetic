@@ -2,12 +2,22 @@ import click
 
 import lib.recall
 
-@click.command()
+@click.group()
 @click.pass_context
-@click.argument('name', required=False)
-def recall(ctx, name):
+def recall(ctx):
     '''
     Display information Eidetic has remembered.
+
+    Can recall projects and next actions.
+    '''
+    pass
+
+@recall.command()
+@click.pass_context
+@click.argument('name', required=False)
+def project(ctx, name):
+    '''
+    Display information about a project.
 
     If no name is given, Eidetic will list available project names
 
@@ -18,3 +28,20 @@ def recall(ctx, name):
     else:
         for p_md in lib.recall.recall_project(name):
             click.echo(p_md)
+
+@recall.command()
+@click.pass_context
+@click.argument('name', required=False)
+def next_action(ctx, name):
+    '''
+    Display information about next actions to take
+
+    If no name is given, return all next actions.
+
+    If a name is given, return the next action for that project.
+    '''
+    if not name:
+        for p, next_action in lib.recall.recall_next_actions():
+            click.echo('{}: {}'.format(p, next_action))
+    else:
+        click.echo(lib.recall.recall_next_action(name))
