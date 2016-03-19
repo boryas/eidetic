@@ -5,6 +5,18 @@ import tempfile
 
 import db
 
+MD_FORMAT = """# <description>
+## Purpose
+<High level purpose of the project>
+## Desired outcomes
+* <outcome>
+## Waiting on
+* <blocker>
+## Actions
+* <action>
+## Next Action
+* <action>"""
+
 def _get_tags_from_filename(fname):
     dir, file = os.path.split(fname)
     _, dir = os.path.split(dir)
@@ -55,15 +67,9 @@ def _parse_markdown_project(project_lines, name, category):
     return project
 
 def _get_project_from_editor():
-    initial_message = """# <DESCRIPTION>
-## Purpose
-## Outcomes
-## Waiting on
-## Actions
-## Next Action"""
     EDITOR = os.environ.get('EDITOR', 'vim')
     with tempfile.NamedTemporaryFile(suffix=".md") as f:
-        f.write(initial_message)
+        f.write(MD_FORMAT)
         f.flush()
         subprocess.call([EDITOR, f.name])
         f.seek(0)
