@@ -1,8 +1,14 @@
+import markdown
 import rethinkdb as r
 
 import lib.db as db
 
-def format_project_markdown(project):
+def _format_project_html(project):
+    md = _format_project_markdown(project)
+    html = markdown.markdown(md, output_format='html5')
+    return html
+
+def _format_project_markdown(project):
     lines = []
     lines.append('# {}'.format(project['description']))
     lines.append('')
@@ -25,13 +31,21 @@ def format_project_markdown(project):
             lines.append("* {}".format(action['description']))
     return "\n".join(lines)
 
-def _recall_project(name, conn):
+def _recall_project(name, conn, format_fn):
     c = db.get_table().filter(r.row['name'] == name).run(conn)
-    return [format_project_markdown(p) for p in c]
+    p = c.next()
+    if not p:
+        return None
+    return format_fn(p)
 
-def recall_project(name):
+def recall_project(name, format='md'):
     conn = db.get_conn()
-    return _recall_project(name, conn)
+    if format == 'md':
+        return _recall_project(name, conn, _format_project_markdown)
+    if format == 'html':
+        return _recall_project(name, conn, _format_project_html)
+    if format == 'json':
+        return _recall_project(name, conn, id)
 
 def _recall_names(conn):
     c = db.get_table().pluck('name').distinct().run(conn)

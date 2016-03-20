@@ -6,6 +6,7 @@ setup(
     packages=find_packages(),
     install_requires=[
         'click',
+        'markdown',
         'rethinkdb',
     ],
     package_data = {
